@@ -8,8 +8,8 @@ What you'll find here:
 - Penetration Testing - methodology, techniques, and hands-on labs
 - Red Teaming — adversary simulation, evasion, and post-exploitation
 - Certification Notes - structured study material for:
-  -📄 CPTS (Certified Junior Cybersecurity Associate)
-  -📄 CPTS (Certified Penetration Testing Specialist)
+  - 📄 CPTS (Certified Junior Cybersecurity Associate)
+  - 📄 CPTS (Certified Penetration Testing Specialist)
   - loading ...
 - Tools & Cheatsheets - quick references I use in the field
 
