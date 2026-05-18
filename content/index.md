@@ -1,6 +1,6 @@
 ---
-title: Welcome to Quartz
+title: Welcome to n3ss's blog
 ---
 
-This is a blank Quartz installation.
-See the [documentation](https://quartz.jzhao.xyz) for how to get started.
+
+Iu em Trang
