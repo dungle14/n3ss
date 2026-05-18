@@ -1,7 +1,7 @@
 ---
 title: Welcome to n3ss's blog
 ---
-Welcome to my corner of the internet — a place where I document everything I learn on my journey through the world of cybersecurity.
+Welcome to my corner of the internet - a place where I document everything I learn on my journey
 This blog serves as my personal knowledge base and public notebook. You'll find writeups, notes, and breakdowns covering topics I'm actively studying and working on.
 What you'll find here:
 
